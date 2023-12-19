@@ -1,73 +1,74 @@
 #!/usr/bin/python3
-"""
-Contains the class DBStorage
-"""
-
-import models
-from models.amenity import Amenity
+"""This is the file storage class for AirBnB"""
+import json
 from models.base_model import BaseModel, Base
+from models.user import User
+from models.state import State
 from models.city import City
+from models.amenity import Amenity
 from models.place import Place
 from models.review import Review
-from models.state import State
-from models.user import User
-from os import getenv
-import sqlalchemy
 from sqlalchemy import create_engine
-from sqlalchemy.orm import scoped_session, sessionmaker
-
-classes = {"Amenity": Amenity, "City": City,
-           "Place": Place, "Review": Review, "State": State, "User": User}
+from sqlalchemy.orm import sessionmaker, scoped_session
+from os import getenv
 
 
 class DBStorage:
-    """interaacts with the MySQL database"""
+    """This class serializes instances to a JSON file and
+    deserializes JSON file to instances
+    Attributes:
+        __file_path: path to the JSON file
+        __objects: objects will be stored
+    """
     __engine = None
     __session = None
 
     def __init__(self):
-        """Instantiate a DBStorage object"""
-        HBNB_MYSQL_USER = getenv('HBNB_MYSQL_USER')
-        HBNB_MYSQL_PWD = getenv('HBNB_MYSQL_PWD')
-        HBNB_MYSQL_HOST = getenv('HBNB_MYSQL_HOST')
-        HBNB_MYSQL_DB = getenv('HBNB_MYSQL_DB')
-        HBNB_ENV = getenv('HBNB_ENV')
-        self.__engine = create_engine('mysql+mysqldb://{}:{}@{}/{}'.
-                                      format(HBNB_MYSQL_USER,
-                                             HBNB_MYSQL_PWD,
-                                             HBNB_MYSQL_HOST,
-                                             HBNB_MYSQL_DB))
-        if HBNB_ENV == "test":
-            Base.metadata.drop_all(self.__engine)
+        """
+        Create the engine(self.__engine)
+        """
+        self.__engine = create_engine("mysql+mysqldb://{}:{}@{}/{}".format(
+            getenv("HBNB_MYSQL_USER"), getenv('HBNB_MYSQL_PWD'),
+            getenv('HBNB_MYSQL_HOST'), getenv('HBNB_MYSQL_DB')),
+                                      pool_pre_ping=True)
+        if getenv("HBNB_MYSQL_ENV") == "test":
+            Base.metadata.drop_all()
 
     def all(self, cls=None):
-        """query on the current database session"""
-        new_dict = {}
-        for clss in classes:
-            if cls is None or cls is classes[clss] or cls is clss:
-                objs = self.__session.query(classes[clss]).all()
-                for obj in objs:
-                    key = obj.__class__.__name__ + '.' + obj.id
-                    new_dict[key] = obj
-        return (new_dict)
+        """
+        Returns a dictionary
+        """
+        my_objects = dict()
+        objects = ["State", "City", "User", "Place", "Review", "Amenity"]
 
-    def get(self, cls, id):
-        """retrieves an object of a class with id"""
-        obj = None
-        if cls is not None and issubclass(cls, BaseModel):
-            obj = self.__session.query(cls).filter(cls.id == id).first()
-        return obj
+        for objts in objects:
+            for obj in self.__session.query(eval(objts)).all():
+                my_objects[type(obj).__name__+"."+obj.id] = obj
 
-    def count(self, cls=None):
-        """retrieves the number of objects of a class or all (if cls==None)"""
-        return len(self.all(cls))
+        return(my_objects)
 
     def new(self, obj):
-        """add the object to the current database session"""
+        """sets __object to given obj
+        Args:
+            obj: given object
+        """
         self.__session.add(obj)
 
     def save(self):
-        """commit all changes of the current database session"""
+        """serialize the file path to JSON file path
+        """
         self.__session.commit()
 
+    def reload(self):
+        """serialize the file path to JSON file path
+        """
+        Base.metadata.create_all(self.__engine)
+        self.__session = scoped_session(sessionmaker(expire_on_commit=False,
+                                        bind=self.__engine))()
+
+    def delete(self, obj=None):
+        """
+        Deletes an object from objects
+        """
+        if obj:
 
